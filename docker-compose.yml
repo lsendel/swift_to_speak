@@ -1,0 +1,389 @@
+version: '3.9'
+
+x-common-variables: &common-variables
+  # API Keys
+  DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+  XAI_API_KEY: ${XAI_API_KEY}
+  GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/google.json
+  AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY}
+  AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-eastus}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  
+  # Network optimization
+  ENABLE_QUIC: "true"
+  ENABLE_HTTP3: "true"
+  ENABLE_WEBSOCKET_COMPRESSION: "true"
+  
+  # Performance settings
+  NODE_ENV: ${NODE_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  # Load Balancer with NGINX
+  nginx:
+    image: nginx:alpine
+    container_name: voiceflow-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # For QUIC/HTTP3
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - node-backend
+      - python-backend
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Node.js Backend (Primary)
+  node-backend:
+    build:
+      context: ./backend/node
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: 20-alpine
+    container_name: voiceflow-node
+    environment:
+      <<: *common-variables
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://voiceflow:password@postgres:5432/voiceflow
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/node:/app
+      - /app/node_modules
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - voiceflow-network
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Python Backend (Secondary/ML Processing)
+  python-backend:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: 3.11-slim
+    container_name: voiceflow-python
+    environment:
+      <<: *common-variables
+      PORT: 3002
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://voiceflow:password@postgres:5432/voiceflow
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./backend/python:/app
+      - ./credentials:/app/credentials:ro
+      - ml-models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - voiceflow-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]  # For ML acceleration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: voiceflow-postgres
+    environment:
+      POSTGRES_DB: voiceflow
+      POSTGRES_USER: voiceflow
+      POSTGRES_PASSWORD: password
+      POSTGRES_INIT_SCRIPTS: /docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: voiceflow-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --tcp-backlog 511
+      --tcp-keepalive 60
+      --timeout 0
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: voiceflow-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: voiceflow-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Jaeger Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: voiceflow-jaeger
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+      COLLECTOR_OTLP_ENABLED: true
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"  # UI
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # WebRTC TURN Server
+  coturn:
+    image: coturn/coturn:alpine
+    container_name: voiceflow-turn
+    network_mode: host
+    command: >
+      -n
+      --log-file=stdout
+      --external-ip=${EXTERNAL_IP:-$(curl -s ifconfig.me)}
+      --realm=voiceflow-ai.com
+      --user=voiceflow:password
+      --lt-cred-mech
+      --fingerprint
+      --no-multicast-peers
+      --no-cli
+      --no-tlsv1
+      --no-tlsv1_1
+    environment:
+      DETECT_EXTERNAL_IP: "yes"
+      EXTERNAL_IP: ${EXTERNAL_IP}
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  # Audio Processing Worker (Spot Instance Candidate)
+  audio-worker:
+    build:
+      context: ./workers/audio
+      dockerfile: Dockerfile
+    container_name: voiceflow-audio-worker
+    environment:
+      <<: *common-variables
+      WORKER_TYPE: audio
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - voiceflow-network
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      placement:
+        constraints:
+          - node.labels.workload == spot
+
+  # ML Model Server (TorchServe)
+  model-server:
+    image: pytorch/torchserve:latest-gpu
+    container_name: voiceflow-models
+    ports:
+      - "8080:8080"  # Inference
+      - "8081:8081"  # Management
+      - "8082:8082"  # Metrics
+    volumes:
+      - ml-models:/home/model-server/model-store
+      - ./docker/torchserve/config.properties:/home/model-server/config.properties:ro
+    networks:
+      - voiceflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+
+networks:
+  voiceflow-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: voiceflow0
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0"
+      com.docker.network.driver.mtu: "1500"
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  ml-models:
+    driver: local
+  credentials:
+    driver: local
+
+# Docker Swarm deployment configuration
+configs:
+  nginx_config:
+    file: ./docker/nginx/nginx.conf
+  prometheus_config:
+    file: ./docker/prometheus/prometheus.yml
+
+secrets:
+  api_keys:
+    file: ./secrets/api_keys.env
+  ssl_cert:
+    file: ./docker/nginx/certs/cert.pem
+  ssl_key:
+    file: ./docker/nginx/certs/key.pem
