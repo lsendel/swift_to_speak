@@ -1,0 +1,235 @@
+# Agent OS Configuration for VoiceFlow AI
+# Version: 1.0.0
+# Last Updated: 2025-08-06
+
+project:
+  name: VoiceFlow AI
+  type: multi-platform-application
+  description: Real-time voice AI assistant with personality across iOS, macOS, and Windows
+  version: 0.1.0
+  
+agents:
+  - name: voice-pipeline-architect
+    role: Design and optimize speech processing pipelines
+    responsibilities:
+      - Audio codec selection and optimization
+      - Latency reduction strategies
+      - WebSocket/WebRTC protocol implementation
+      - Voice activity detection (VAD) tuning
+    tools:
+      - performance-profiler
+      - network-analyzer
+      - audio-benchmarker
+      
+  - name: ios-specialist
+    role: iOS application development and optimization
+    responsibilities:
+      - SwiftUI interface implementation
+      - AVAudioEngine integration
+      - Core Audio optimization
+      - iOS-specific feature development
+    tools:
+      - xcode-automation
+      - swift-linter
+      - testflight-deployer
+      
+  - name: speech-api-integrator  
+    role: Integrate and manage multiple speech service providers
+    responsibilities:
+      - API integration (Deepgram, Google, Azure, ElevenLabs)
+      - Fallback routing logic
+      - Cost optimization algorithms
+      - Provider health monitoring
+    tools:
+      - api-tester
+      - latency-monitor
+      - cost-calculator
+      
+  - name: ai-personality-designer
+    role: Design and implement AI personality features
+    responsibilities:
+      - Personality trait system
+      - Response tone matching
+      - Humor and wit injection
+      - Context awareness implementation
+    tools:
+      - prompt-engineer
+      - personality-tester
+      - user-feedback-analyzer
+      
+  - name: infrastructure-orchestrator
+    role: Manage cloud infrastructure and deployment
+    responsibilities:
+      - Kubernetes cluster management
+      - Auto-scaling configuration
+      - Database optimization
+      - CI/CD pipeline maintenance
+    tools:
+      - terraform
+      - kubectl
+      - prometheus
+      - grafana
+      
+  - name: security-guardian
+    role: Ensure security and privacy compliance
+    responsibilities:
+      - End-to-end encryption implementation
+      - API key rotation
+      - GDPR/CCPA compliance
+      - Security audit automation
+    tools:
+      - vulnerability-scanner
+      - encryption-validator
+      - compliance-checker
+      
+  - name: cross-platform-coordinator
+    role: Ensure consistency across all platforms
+    responsibilities:
+      - Sync protocol implementation
+      - Feature parity tracking
+      - Shared component development
+      - Platform-specific optimization
+    tools:
+      - platform-differ
+      - sync-tester
+      - compatibility-checker
+
+workflows:
+  development:
+    phases:
+      - name: planning
+        agents: [voice-pipeline-architect, ai-personality-designer]
+        duration: 1 week
+        
+      - name: infrastructure-setup
+        agents: [infrastructure-orchestrator, security-guardian]
+        duration: 2 weeks
+        
+      - name: core-development
+        agents: [ios-specialist, speech-api-integrator, voice-pipeline-architect]
+        duration: 4 weeks
+        
+      - name: platform-expansion
+        agents: [cross-platform-coordinator, ios-specialist]
+        duration: 3 weeks
+        
+      - name: optimization
+        agents: [voice-pipeline-architect, infrastructure-orchestrator]
+        duration: 2 weeks
+        
+  deployment:
+    stages:
+      - name: testing
+        agents: [ios-specialist, speech-api-integrator]
+        environment: staging
+        
+      - name: security-review
+        agents: [security-guardian]
+        environment: staging
+        
+      - name: production-release
+        agents: [infrastructure-orchestrator, cross-platform-coordinator]
+        environment: production
+
+automation:
+  triggers:
+    - event: code-push
+      action: run-tests
+      agents: [ios-specialist]
+      
+    - event: api-latency-spike
+      action: switch-provider
+      agents: [speech-api-integrator]
+      
+    - event: security-vulnerability
+      action: patch-and-deploy
+      agents: [security-guardian, infrastructure-orchestrator]
+      
+    - event: cost-threshold
+      action: optimize-routing
+      agents: [speech-api-integrator]
+
+monitoring:
+  metrics:
+    - name: end-to-end-latency
+      threshold: 100ms
+      agent: voice-pipeline-architect
+      
+    - name: api-availability
+      threshold: 99.9%
+      agent: speech-api-integrator
+      
+    - name: user-satisfaction
+      threshold: 4.5
+      agent: ai-personality-designer
+      
+    - name: infrastructure-cost
+      threshold: $10000/month
+      agent: infrastructure-orchestrator
+
+communication:
+  channels:
+    - type: slack
+      webhook: ${SLACK_WEBHOOK_URL}
+      events: [deployment, critical-error, milestone]
+      
+    - type: email
+      recipients: [team@voiceflow-ai.com]
+      events: [weekly-report, cost-alert]
+      
+  reporting:
+    frequency: weekly
+    format: markdown
+    include:
+      - progress-summary
+      - blocker-list
+      - metric-dashboard
+      - upcoming-milestones
+
+resources:
+  documentation:
+    - product/mission.md
+    - product/tech-stack.md
+    - product/roadmap.md
+    - product/decisions.md
+    
+  repositories:
+    - name: voiceflow-ai-ios
+      url: https://github.com/yourorg/voiceflow-ai-ios
+      
+    - name: voiceflow-ai-backend
+      url: https://github.com/yourorg/voiceflow-ai-backend
+      
+    - name: voiceflow-ai-windows
+      url: https://github.com/yourorg/voiceflow-ai-windows
+      
+  external-services:
+    - name: Deepgram
+      type: speech-to-text
+      docs: https://developers.deepgram.com
+      
+    - name: ElevenLabs
+      type: text-to-speech
+      docs: https://docs.elevenlabs.io
+      
+    - name: xAI
+      type: ai-model
+      docs: https://docs.x.ai
+
+environment:
+  variables:
+    - DEEPGRAM_API_KEY
+    - ELEVENLABS_API_KEY
+    - XAI_API_KEY
+    - GOOGLE_CLOUD_API_KEY
+    - AZURE_SPEECH_KEY
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - DATABASE_URL
+    - REDIS_URL
+    
+  secrets:
+    provider: aws-secrets-manager
+    region: us-east-1
+    auto-rotate: true
+    rotation-days: 90

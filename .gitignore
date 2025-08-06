@@ -1,0 +1,257 @@
+# VoiceFlow AI - Git Ignore File
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE Files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# iOS / Xcode
+## Build generated
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+*.xcscheme
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+## Swift Package Manager
+.build/
+Package.resolved
+*.xcodeproj
+
+## CocoaPods
+Pods/
+*.xcworkspace
+
+## Carthage
+Carthage/Build/
+Carthage/Checkouts
+
+## fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Windows / .NET
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nuget.props
+*.nuget.targets
+
+## Node.js / Backend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+.npm
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
+*.env
+
+# API Keys and Secrets
+*.key
+*.pem
+*.p12
+*.cer
+secrets/
+credentials/
+config/secrets.yml
+config/credentials.yml.enc
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+data/
+postgres-data/
+mysql-data/
+redis-data/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+jest-results/
+*.lcov
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+volumes/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+*.tfvars
+
+# Audio Files (for testing)
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.opus
+!test-audio/**
+
+# ML Models
+models/
+*.model
+*.h5
+*.pkl
+*.joblib
+!models/.gitkeep
+
+# Temporary Files
+tmp/
+temp/
+cache/
+*.tmp
+*.temp
+*.cache
+
+# Backup Files
+*.backup
+*.bak
+*.old
+backup/
+
+# Documentation Build
+docs/_build/
+docs/.build/
+site/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+ENV/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ruby
+*.gem
+*.rbc
+.bundle/
+vendor/bundle/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+
+# Monitoring
+.prometheus/
+.grafana/
+
+# Custom
+.agent-os/cache/
+.agent-os/logs/
+audio-samples/
+user-recordings/
+*.lock
+!package-lock.json
+!yarn.lock
+!pnpm-lock.yaml
+!Gemfile.lock
+!Pipfile.lock
