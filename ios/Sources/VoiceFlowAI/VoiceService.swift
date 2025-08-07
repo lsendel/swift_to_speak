@@ -5,6 +5,9 @@ import Network
 import Combine
 import SocketIO
 import AudioKit
+#if os(iOS)
+import UIKit
+#endif
 
 /// High-performance voice service with hardware optimization
 @available(iOS 16.0, *)
@@ -32,7 +35,6 @@ public final class VoiceService: NSObject {
     
     // Adaptive quality management
     private var currentQualityProfile: QualityProfile = .standard
-    private let qualityManager = QualityManager()
     
     // Performance monitoring
     private var processingTimes: [TimeInterval] = []
@@ -45,13 +47,15 @@ public final class VoiceService: NSObject {
     @Published public private(set) var latency: TimeInterval = 0
     
     // Audio session configuration
+    #if os(iOS)
     private let audioSession = AVAudioSession.sharedInstance()
+    #endif
     
     // Voice Activity Detection with Core ML
     private let vad = VoiceActivityDetector()
     
     // Circular buffer for zero-copy audio processing
-    private var audioBuffer: TPCircularBuffer?
+    private var audioBuffer: UnsafeMutablePointer<TPCircularBuffer>?
     private let bufferCapacity: UInt32 = 48000 * 10  // 10 seconds
     
     // MARK: - Quality Profiles
@@ -109,6 +113,7 @@ public final class VoiceService: NSObject {
     // MARK: - Audio Session Setup
     
     private func setupAudioSession() {
+        #if os(iOS)
         do {
             // Configure for optimal voice processing
             try audioSession.setCategory(
@@ -132,6 +137,9 @@ public final class VoiceService: NSObject {
         } catch {
             print("❌ Audio session setup failed: \(error)")
         }
+        #else
+        print("✅ Audio session configuration skipped on macOS")
+        #endif
     }
     
     // MARK: - Network Setup
@@ -181,7 +189,9 @@ public final class VoiceService: NSObject {
     
     private func setupCircularBuffer() {
         audioBuffer = TPCircularBuffer.allocate()
-        TPCircularBufferInit(audioBuffer, bufferCapacity)
+        if let buffer = audioBuffer {
+            TPCircularBufferInit(buffer, bufferCapacity)
+        }
     }
     
     // MARK: - Connection Management
@@ -377,11 +387,12 @@ public final class VoiceService: NSObject {
         
         // Apply noise gate using vDSP
         var threshold: Float = 0.01
-        vDSP_vthres(&filtered, 1, &threshold, &filtered, 1, vDSP_Length(frameLength))
+        var gated = [Float](repeating: 0, count: frameLength)
+        vDSP_vthres(&filtered, 1, &threshold, &gated, 1, vDSP_Length(frameLength))
         
         // Convert back to Int16
         var outputSamples = [Int16](repeating: 0, count: frameLength)
-        vDSP_vfix16(filtered, 1, &outputSamples, 1, vDSP_Length(frameLength))
+        vDSP_vfix16(gated, 1, &outputSamples, 1, vDSP_Length(frameLength))
         
         return Data(bytes: outputSamples, count: frameLength * 2)
     }
@@ -474,11 +485,16 @@ public final class VoiceService: NSObject {
     // MARK: - Helper Methods
     
     private func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation { continuation in
+        #if os(iOS)
+        return await withCheckedContinuation { continuation in
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 continuation.resume(returning: granted)
             }
         }
+        #else
+        // On macOS, use different permission mechanism or return true for testing
+        return true
+        #endif
     }
     
     private func waitForConnection() async throws {
@@ -495,16 +511,30 @@ public final class VoiceService: NSObject {
     
     private func getUserId() -> String {
         // Get from keychain or generate
+        #if os(iOS)
         return UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        #else
+        // On macOS, use a different identifier
+        return UUID().uuidString
+        #endif
     }
     
     private func getDeviceInfo() -> [String: Any] {
+        #if os(iOS)
         return [
             "model": UIDevice.current.model,
             "system_version": UIDevice.current.systemVersion,
             "processor": getProcessorInfo(),
             "memory_gb": ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024)
         ]
+        #else
+        return [
+            "model": "Mac",
+            "system_version": ProcessInfo.processInfo.operatingSystemVersionString,
+            "processor": getProcessorInfo(),
+            "memory_gb": ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024)
+        ]
+        #endif
     }
     
     private func getProcessorInfo() -> String {
@@ -533,21 +563,21 @@ public final class VoiceService: NSObject {
 
 // MARK: - Supporting Types
 
-enum ConnectionState {
+public enum ConnectionState {
     case disconnected
     case connecting
     case connected
     case reconnecting
 }
 
-enum NetworkQuality {
+public enum NetworkQuality {
     case excellent
     case good
     case fair
     case poor
 }
 
-struct AudioConfig {
+public struct AudioConfig {
     let sampleRate: Double
     let bitDepth: Int
     let channels: Int
@@ -555,23 +585,36 @@ struct AudioConfig {
     let processingMode: ProcessingMode
 }
 
-enum AudioCodec {
+public enum AudioCodec {
     case pcm
     case opus(bitrate: Int)
     case aac
 }
 
-enum ProcessingMode {
+public enum ProcessingMode {
     case basic
     case standard
     case advanced
 }
 
-enum VoiceServiceError: Error {
+public enum VoiceServiceError: Error {
     case invalidEndpoint
     case notConnected
     case connectionTimeout
     case microphonePermissionDenied
+}
+
+// MARK: - Quality Manager
+
+class QualityManager {
+    func adjustQuality(basedOn performance: TimeInterval, network: NetworkQuality) -> VoiceService.QualityProfile {
+        if performance > 0.005 {
+            return .economy
+        } else if performance < 0.002 && network == .excellent {
+            return .premium
+        }
+        return .standard
+    }
 }
 
 // MARK: - Metrics Collection

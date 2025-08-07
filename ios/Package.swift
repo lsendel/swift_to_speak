@@ -51,7 +51,12 @@ let package = Package(
         ),
         .executableTarget(
             name: "VoiceFlowAIApp",
-            dependencies: ["VoiceFlowAI"],
+            dependencies: [
+                "VoiceFlowAI",
+                .product(name: "SocketIO", package: "socket.io-client-swift"),
+                .product(name: "AudioKit", package: "AudioKit"),
+                .product(name: "Alamofire", package: "Alamofire")
+            ],
             path: "Sources/VoiceFlowAIApp"
         ),
         .testTarget(
